@@ -1,0 +1,34 @@
+<!--
+  This is a REFERENCE snippet, not a full manifest. When you run
+  `flutter create .` inside this project (see README.md step 1), Flutter
+  generates the full android/app/src/main/AndroidManifest.xml for you.
+  Merge the lines below into that generated file — inside <manifest>, above
+  <application>, and don't duplicate the <queries> block if one already
+  exists.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required for the telephony plugin to read/listen to SMS -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+
+    <!-- Only needed if you enable listenInBackground in SmsService -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
+    <application
+        android:label="Budgeta"
+        android:icon="@mipmap/ic_launcher">
+        <!-- your generated <activity> block stays here -->
+    </application>
+</manifest>
+
+<!--
+  Play Store note: apps that request SMS permissions face extra review under
+  Google's "Permissions for SMS and Call Log" policy. You'll need to justify
+  it in the Play Console (Declaration form) as "core app functionality" —
+  personal finance / expense tracking from SMS is an accepted use case, but
+  expect a manual review step before publishing, and keep the permission
+  request itself (not just usage) limited to what's declared.
+-->
