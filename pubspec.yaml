@@ -23,6 +23,11 @@ dependencies:
   # iOS + Android: receive text shared from the Messages app via the Share Sheet
   receive_sharing_intent: ^1.8.0
 
+  # Local notifications: instant "transaction logged" alerts + the scheduled
+  # daily cash check-in reminder
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
   # Formatting
   intl: ^0.19.0
   uuid: ^4.4.0

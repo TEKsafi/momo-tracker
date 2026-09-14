@@ -3,6 +3,7 @@ import 'services/local_store.dart';
 import 'services/sms_service_android.dart';
 import 'services/share_intent_service.dart';
 import 'services/momo_sms_parser.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/transactions_screen.dart';
@@ -10,6 +11,12 @@ import 'screens/insights_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/add_transaction_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/daily_checkin_screen.dart';
+
+/// A navigator key lets NotificationService push a screen (the daily
+/// check-in) when the user taps a notification, without threading
+/// BuildContext through the notification callback.
+final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +32,7 @@ class MomoTrackerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Budgeta — MoMo Tracker',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: buildAppTheme(),
       home: const AppEntry(),
     );
@@ -84,12 +92,22 @@ class _RootShellState extends State<RootShell> {
   }
 
   Future<void> _initCaptureServices() async {
-    // Android: listener for incoming MoMo SMS while the app is running.
+    await NotificationService.init(onTapCheckin: () {
+      navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const DailyCheckinScreen()));
+    });
+
+    // Android: listener for incoming SMS from any enabled source while the app is running.
     final settings = await LocalStore.getSettings();
     if (settings['autoReadSms'] == true) {
       await SmsService.startListening(onNewTransaction: (_) async {
         if (mounted) setState(() {}); // refresh whichever tab is showing
       });
+    }
+    if (settings['dailyCheckinEnabled'] == true) {
+      await NotificationService.scheduleDailyCheckin(
+        hour: settings['dailyCheckinHour'] ?? 20,
+        minute: settings['dailyCheckinMinute'] ?? 0,
+      );
     }
 
     // iOS (and Android fallback): text shared from Messages via the Share Sheet.

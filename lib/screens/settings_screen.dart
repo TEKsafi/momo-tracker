@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/local_store.dart';
 import '../services/sms_service_android.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import 'savings_goals_screen.dart';
+import 'message_sources_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -37,6 +39,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     setState(() => _settings['autoReadSms'] = value);
     await LocalStore.saveSettings(_settings);
+  }
+
+  Future<void> _toggleNotifyOnTransaction(bool value) async {
+    setState(() => _settings['notifyOnTransaction'] = value);
+    await LocalStore.saveSettings(_settings);
+  }
+
+  Future<void> _toggleDailyCheckin(bool value) async {
+    setState(() => _settings['dailyCheckinEnabled'] = value);
+    await LocalStore.saveSettings(_settings);
+    if (value) {
+      await NotificationService.scheduleDailyCheckin(
+        hour: _settings['dailyCheckinHour'] ?? 20,
+        minute: _settings['dailyCheckinMinute'] ?? 0,
+      );
+    } else {
+      await NotificationService.cancelDailyCheckin();
+    }
+  }
+
+  Future<void> _pickCheckinTime() async {
+    final current = TimeOfDay(hour: _settings['dailyCheckinHour'] ?? 20, minute: _settings['dailyCheckinMinute'] ?? 0);
+    final picked = await showTimePicker(context: context, initialTime: current);
+    if (picked == null) return;
+    setState(() {
+      _settings['dailyCheckinHour'] = picked.hour;
+      _settings['dailyCheckinMinute'] = picked.minute;
+    });
+    await LocalStore.saveSettings(_settings);
+    if (_settings['dailyCheckinEnabled'] == true) {
+      await NotificationService.scheduleDailyCheckin(hour: picked.hour, minute: picked.minute);
+    }
   }
 
   Future<void> _editProfile() async {
@@ -82,6 +116,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final initials = name.trim().isEmpty
         ? '?'
         : name.trim().split(RegExp(r'\s+')).map((w) => w[0]).take(2).join().toUpperCase();
+    final checkinHour = _settings['dailyCheckinHour'] ?? 20;
+    final checkinMinute = _settings['dailyCheckinMinute'] ?? 0;
+    final checkinTimeLabel = TimeOfDay(hour: checkinHour, minute: checkinMinute).format(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -138,9 +175,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Auto-read MoMo SMS', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                              const Text('Auto-read messages', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
                               const SizedBox(height: 3),
-                              const Text('Log transactions the moment a MoMo text arrives', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                              const Text('Log transactions the moment a text arrives from an enabled source', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
                             ],
                           ),
                         ),
@@ -153,11 +190,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Row(children: [Icon(Icons.info_outline, size: 16, color: AppColors.warn), SizedBox(width: 8), Text('Not available on iOS', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))]),
                         SizedBox(height: 6),
                         Text(
-                          "Apple doesn't allow any app to read SMS automatically — that's an Apple restriction, not a limit of this app. Paste or share a MoMo message from Messages to log it instead.",
+                          "Apple doesn't allow any app to read SMS automatically — that's an Apple restriction, not a limit of this app. Paste or share a message from Messages to log it instead.",
                           style: TextStyle(fontSize: 11.5, color: AppColors.muted),
                         ),
                       ],
                     ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.tune, color: AppColors.accent),
+              title: const Text('Message sources', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+              subtitle: const Text('Choose which senders count — MoMo, your bank, or a custom one', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessageSourcesScreen())),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Notifications', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Card(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Notify when a transaction is logged', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 3),
+                            const Text('A quick alert every time a message is auto-parsed', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                          ],
+                        ),
+                      ),
+                      Switch(value: _settings['notifyOnTransaction'] == true, onChanged: _toggleNotifyOnTransaction, activeThumbColor: AppColors.accent),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Daily cash check-in', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 3),
+                            const Text('A reminder to log anything by hand — cash given or received', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                          ],
+                        ),
+                      ),
+                      Switch(value: _settings['dailyCheckinEnabled'] == true, onChanged: _toggleDailyCheckin, activeThumbColor: AppColors.accent),
+                    ],
+                  ),
+                ),
+                if (_settings['dailyCheckinEnabled'] == true) ...[
+                  const Divider(height: 1, color: AppColors.border),
+                  ListTile(
+                    title: const Text('Reminder time', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    trailing: Text(checkinTimeLabel, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent)),
+                    onTap: _pickCheckinTime,
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(height: 24),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/transaction.dart';
+import '../models/message_source.dart';
 
 /// Local-first store so the app works fully offline and demonstrates the
 /// data model end-to-end. Swap the body of each method for an ApiService
@@ -14,6 +15,7 @@ class LocalStore {
   static const _kActiveBudget = 'momo_active_budget';
   static const _kSettings = 'momo_settings';
   static const _kGoals = 'momo_savings_goals';
+  static const _kMessageSources = 'momo_message_sources';
   static const uuid = Uuid();
 
   static Future<void> seedIfEmpty() async {
@@ -26,12 +28,17 @@ class LocalStore {
     await prefs.setString(_kTransactions, jsonEncode([]));
     await prefs.setString(_kAllocations, jsonEncode([]));
     await prefs.setString(_kGoals, jsonEncode([]));
+    await prefs.setString(_kMessageSources, jsonEncode(MessageSource.defaults().map((s) => s.toJson()).toList()));
     await prefs.setString(_kSettings, jsonEncode({
       'name': 'Safari',
       'email': 'safari@example.com',
       'theme': 'dark',
       'autoReadSms': true,
       'hasOnboarded': false,
+      'notifyOnTransaction': true,
+      'dailyCheckinEnabled': false,
+      'dailyCheckinHour': 20,
+      'dailyCheckinMinute': 0,
     }));
   }
 
@@ -110,6 +117,22 @@ class LocalStore {
   static Future<void> saveSavingsGoals(List<SavingsGoal> goals) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kGoals, jsonEncode(goals.map((g) => g.toJson()).toList()));
+  }
+
+  static Future<List<MessageSource>> getMessageSources() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kMessageSources);
+    if (raw == null) {
+      final defaults = MessageSource.defaults();
+      await prefs.setString(_kMessageSources, jsonEncode(defaults.map((s) => s.toJson()).toList()));
+      return defaults;
+    }
+    return (jsonDecode(raw) as List).map((e) => MessageSource.fromJson(e)).toList();
+  }
+
+  static Future<void> saveMessageSources(List<MessageSource> sources) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kMessageSources, jsonEncode(sources.map((s) => s.toJson()).toList()));
   }
 
   /// Have we already logged this MoMo transaction id? Prevents duplicate

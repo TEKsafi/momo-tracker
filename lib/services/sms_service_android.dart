@@ -3,10 +3,16 @@ import 'package:telephony/telephony.dart';
 import '../models/transaction.dart';
 import 'momo_sms_parser.dart';
 import 'local_store.dart';
+import 'notification_service.dart';
 
 /// Automatic SMS reading — Android only. On iOS this class's methods are
 /// no-ops; iOS has no API for third-party SMS access (see ShareIntentService
 /// for the iOS equivalent flow).
+///
+/// Which senders count as a transaction source is now configurable by the
+/// user (Settings > Message sources, backed by LocalStore.getMessageSources)
+/// instead of a fixed list — a message only gets parsed if it comes from a
+/// source the user has explicitly enabled.
 ///
 /// Requires these permissions in android/app/src/main/AndroidManifest.xml
 /// (already added in this project — see that file):
@@ -14,10 +20,6 @@ import 'local_store.dart';
 ///   android.permission.READ_SMS
 class SmsService {
   static final Telephony _telephony = Telephony.instance;
-
-  /// Senders to treat as MoMo. Extend this list if your MoMo texts arrive
-  /// under a different sender ID than "M-Money" / "MTN".
-  static const List<String> momoSenderKeywords = ['M-Money', 'MTN', 'MoMo'];
 
   static bool get isSupported => Platform.isAndroid;
 
@@ -27,13 +29,21 @@ class SmsService {
     return granted ?? false;
   }
 
-  static bool _looksLikeMomo(String? address) {
+  static Future<bool> _matchesEnabledSource(String? address) async {
     if (address == null) return false;
-    return momoSenderKeywords.any((k) => address.toLowerCase().contains(k.toLowerCase()));
+    final sources = await LocalStore.getMessageSources();
+    final addressLower = address.toLowerCase();
+    for (final source in sources) {
+      if (!source.enabled) continue;
+      for (final keyword in source.senderKeywords) {
+        if (addressLower.contains(keyword.toLowerCase())) return true;
+      }
+    }
+    return false;
   }
 
   /// Call once at app startup (Android only) to start listening for new
-  /// incoming MoMo SMS while the app is running.
+  /// incoming SMS from any enabled source while the app is running.
   static Future<void> startListening({required Future<void> Function(Transaction) onNewTransaction}) async {
     if (!isSupported) return;
     final granted = await requestPermissions();
@@ -67,7 +77,7 @@ class SmsService {
   }
 
   static Future<bool> _handleMessage(String? address, String? body, Future<void> Function(Transaction) onNewTransaction) async {
-    if (body == null || !_looksLikeMomo(address)) return false;
+    if (body == null || !await _matchesEnabledSource(address)) return false;
 
     final parsed = MomoSmsParser.parse(body);
     if (!parsed.isConfident) return false; // couldn't confidently parse — leave for manual review
@@ -92,6 +102,14 @@ class SmsService {
     );
     await LocalStore.addTransaction(tx);
     await onNewTransaction(tx);
+
+    final settings = await LocalStore.getSettings();
+    if (settings['notifyOnTransaction'] == true) {
+      final budgets = await LocalStore.getBudgets();
+      final budget = budgets.firstWhere((b) => b.id == activeBudgetId, orElse: () => budgets.first);
+      await NotificationService.notifyTransactionLogged(tx, budget.currency);
+    }
+
     return true;
   }
 }

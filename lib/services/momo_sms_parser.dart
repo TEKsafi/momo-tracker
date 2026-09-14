@@ -76,6 +76,18 @@ class MomoSmsParser {
       category: 'Airtime/Data',
       regex: RegExp(r'purchased bundles? for\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
     ),
+    // Generic bank wording: "Your account has been debited with 50,000 RWF ..."
+    _Pattern(
+      type: TxType.expense,
+      category: 'Other',
+      regex: RegExp(r'debited (?:with)?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
+    ),
+    // Generic bank wording: "Your account has been credited with 50,000 RWF ..."
+    _Pattern(
+      type: TxType.income,
+      category: 'Other',
+      regex: RegExp(r'credited (?:with)?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
+    ),
   ];
 
   static double? _num(String? s) {
