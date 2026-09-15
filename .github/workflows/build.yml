@@ -17,6 +17,12 @@ jobs:
           grep -q "namespace 'com.shounakmulay.telephony'" "$plugin_gradle" || \
             sed -i "/^android {/a\\    namespace 'com.shounakmulay.telephony'" "$plugin_gradle"
           sed -i 's/jvmTarget = "1.8"/jvmTarget = "11"/' "$plugin_gradle"
+      - name: Patch sharing plugin JVM target
+        run: |
+          plugin_gradle="${PUB_CACHE:-$HOME/.pub-cache}/hosted/pub.dev/receive_sharing_intent-1.8.0/android/build.gradle"
+          test -f "$plugin_gradle"
+          grep -q 'jvmTarget = "11"' "$plugin_gradle" || \
+            sed -i "/^android {/a\\    kotlinOptions { jvmTarget = \"11\" }" "$plugin_gradle"
       - run: flutter analyze lib test
       - run: flutter test
       - run: flutter build apk --release
