@@ -9,16 +9,6 @@ jobs:
         with:
           flutter-version: '3.47.4'
           channel: 'stable'
-      - name: Install Android SDK 37
-        run: |
-          android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          sdkmanager="$android_sdk/cmdline-tools/latest/bin/sdkmanager"
-          if [[ ! -x "$sdkmanager" ]]; then
-            sdkmanager="$(find "$android_sdk/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
-          fi
-          test -x "$sdkmanager"
-          yes | "$sdkmanager" --licenses >/dev/null || true
-          "$sdkmanager" "platforms;android-37"
       - run: flutter pub get
       - name: Patch telephony plugin namespace
         run: |

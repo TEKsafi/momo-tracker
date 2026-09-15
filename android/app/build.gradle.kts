@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.safari.momo_tracker"
-    compileSdk = 37
+    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

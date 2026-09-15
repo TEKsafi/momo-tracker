@@ -21,7 +21,7 @@ dependencies:
   telephony: ^0.2.0
 
   # iOS + Android: receive text shared from the Messages app via the Share Sheet
-  receive_sharing_intent: ^1.8.0
+  receive_sharing_intent: 1.8.0
 
   # Local notifications: instant "transaction logged" alerts + the scheduled
   # daily cash check-in reminder
