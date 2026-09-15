@@ -16,6 +16,7 @@ jobs:
           test -f "$plugin_gradle"
           grep -q "namespace 'com.shounakmulay.telephony'" "$plugin_gradle" || \
             sed -i "/^android {/a\\    namespace 'com.shounakmulay.telephony'" "$plugin_gradle"
+          sed -i 's/compileSdkVersion 31/compileSdkVersion 34/' "$plugin_gradle"
           sed -i 's/jvmTarget = "1.8"/jvmTarget = "11"/' "$plugin_gradle"
       - name: Patch sharing plugin JVM target
         run: |
