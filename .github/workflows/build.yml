@@ -9,6 +9,10 @@ jobs:
         with:
           flutter-version: '3.47.4'
           channel: 'stable'
+      - name: Install Android SDK 37
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37"
       - run: flutter pub get
       - name: Patch telephony plugin namespace
         run: |
@@ -16,6 +20,7 @@ jobs:
           test -f "$plugin_gradle"
           grep -q "namespace 'com.shounakmulay.telephony'" "$plugin_gradle" || \
             sed -i "/^android {/a\\    namespace 'com.shounakmulay.telephony'" "$plugin_gradle"
+          sed -i 's/jvmTarget = "1.8"/jvmTarget = "11"/' "$plugin_gradle"
       - run: flutter analyze lib test
       - run: flutter test
       - run: flutter build apk --release
