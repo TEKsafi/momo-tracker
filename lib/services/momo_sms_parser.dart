@@ -27,11 +27,6 @@ class ParsedMomoMessage {
 }
 
 /// Parses MTN MoMo notification SMS text into structured data.
-///
-/// MoMo message wording varies slightly by country/operator update, so this
-/// matches on keywords + a flexible amount/party grabber rather than one
-/// rigid template. Add more patterns to `_patterns` as you encounter new
-/// message formats — that's the main maintenance point of this class.
 class MomoSmsParser {
   static final RegExp _amount = RegExp(r'([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
   static final RegExp _balance = RegExp(r'new balance:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
@@ -40,49 +35,41 @@ class MomoSmsParser {
   static final RegExp _dateTime = RegExp(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})');
 
   static final List<_Pattern> _patterns = [
-    // "You have received 5,000 RWF from John Doe (0788...) ..."
     _Pattern(
       type: TxType.income,
       category: 'Other',
-      regex: RegExp(r'received\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from\s+([A-Za-z .\'-]+?)(?:\s*\(|\s+on|\s+at)', caseSensitive: false),
+      regex: RegExp(r"received\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from\s+([A-Za-z .'-]+?)(?:\s*\(|\s+on|\s+at)", caseSensitive: false),
     ),
-    // "Your payment of 2,000 RWF to Kigali Coffee Shop has been completed ..."
     _Pattern(
       type: TxType.expense,
       category: 'Other',
-      regex: RegExp(r'payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .\'-]+?)\s+has been', caseSensitive: false),
+      regex: RegExp(r"payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .'-]+?)\s+has been", caseSensitive: false),
     ),
-    // "You have transferred 15,000 RWF to Marie Uwase (0788...) ..."
     _Pattern(
       type: TxType.expense,
       category: 'Other',
-      regex: RegExp(r'transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z .\'-]+?)(?:\s*\(|\s+at)', caseSensitive: false),
+      regex: RegExp(r"transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z .'-]+?)(?:\s*\(|\s+at)", caseSensitive: false),
     ),
-    // "You have via agent X withdrawn 10,000 RWF from your mobile money account ..."
     _Pattern(
       type: TxType.expense,
       category: 'Other',
       regex: RegExp(r'withdrawn\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from', caseSensitive: false),
     ),
-    // "You have bought airtime for 1,000 RWF ..."
     _Pattern(
       type: TxType.expense,
       category: 'Airtime/Data',
       regex: RegExp(r'bought airtime for\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
     ),
-    // "You have purchased bundles for 1,000 RWF ..."
     _Pattern(
       type: TxType.expense,
       category: 'Airtime/Data',
       regex: RegExp(r'purchased bundles? for\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
     ),
-    // Generic bank wording: "Your account has been debited with 50,000 RWF ..."
     _Pattern(
       type: TxType.expense,
       category: 'Other',
       regex: RegExp(r'debited (?:with)?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
     ),
-    // Generic bank wording: "Your account has been credited with 50,000 RWF ..."
     _Pattern(
       type: TxType.income,
       category: 'Other',
@@ -112,8 +99,6 @@ class MomoSmsParser {
       }
     }
 
-    // Fallback: if nothing matched but an amount is present, surface it as
-    // "unrecognized" so the user can categorize manually instead of losing it.
     amount ??= _num(_amount.firstMatch(text)?.group(1));
 
     DateTime? date;
@@ -134,9 +119,6 @@ class MomoSmsParser {
     );
   }
 
-  /// Best-guess category from keywords when a pattern didn't already assign
-  /// one (e.g. a merchant payment). Cheap heuristic, not ML — meant to save
-  /// a tap, not to be perfect. The user can always change it.
   static String guessCategory(ParsedMomoMessage parsed) {
     final t = parsed.rawText.toLowerCase();
     final party = (parsed.counterparty ?? '').toLowerCase();
