@@ -86,14 +86,12 @@ class MomoSmsParser {
     TxType? type;
     double? amount;
     String? party;
-    String? category;
 
     for (final p in _patterns) {
       final m = p.regex.firstMatch(text);
       if (m != null) {
         type = p.type;
         amount = _num(m.group(1));
-        category = p.category;
         if (m.groupCount >= 2) party = m.group(2)?.trim();
         break;
       }

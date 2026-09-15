@@ -5,36 +5,41 @@ Tracks and manages your MoMo money: parses MoMo SMS to auto-log transactions
 balances, and supports "virtual envelopes" so money from one pooled MoMo
 balance can be allocated across multiple budgets.
 
-## ⚠️ Before you run this
+## Build a personal Android APK
 
-**This code was written and organized by hand — it has not been compiled.**
-The sandbox this was built in has no Flutter/Dart SDK and no access to
-pub.dev, so `flutter pub get` / `flutter run` could not be executed here.
-The MoMo SMS parsing logic *was* verified (its regex patterns were tested
-against 5 realistic MoMo message samples, all passed — see
-`test/momo_sms_parser_test.dart` for the same cases as Flutter tests), but
-Flutter/Dart-specific issues (a typo, an API signature drift in a plugin
-version, etc.) can only surface once you actually build it. Budget time for
-a first-build debugging pass — that's normal for any handed-off Flutter
-project, not a sign something is fundamentally wrong.
+The repository includes the complete Flutter and Android project. GitHub
+Actions builds a personal-use release APK on every push:
 
-## Setup
+1. Open the repository's **Actions** tab.
+2. Open the latest **Build APK** workflow run.
+3. Download the `app-release` artifact.
+4. Extract it and install `app-release.apk` on your Android phone.
+
+This APK uses the local debug signing key, which is suitable for personal
+sideloading but is not suitable for publishing to Google Play. A future Play
+Store release would need a private upload keystore and additional policy
+review.
+
+For a local build, install Flutter 3.47.4 and the Android SDK, then run:
 
 ```bash
-# 1. Turn this folder into a full Flutter project (generates android/ios
-#    native scaffolding that can't be created without the Flutter SDK):
-flutter create . --org com.yourcompany --project-name momo_tracker
-
-# 2. Install dependencies
 flutter pub get
-
-# 3. Merge the permissions from android/app/src/main/AndroidManifest.xml
-#    (the reference snippet in this repo) into the one flutter create
-#    just generated in the same path.
-
-# 4. Run
-flutter run
+flutter analyze lib test
+flutter test
+flutter build apk --release
 ```
+
+The local APK is written to
+`build/app/outputs/flutter-apk/app-release.apk`.
+
+## Install and enable SMS capture
+
+Android may warn that the APK came from outside Google Play. Allow installation
+from the browser or file manager used to open the downloaded APK, then install
+it. On first launch, complete onboarding. To use automatic capture, grant SMS
+permissions when prompted and enable the relevant message source in Settings.
+If permissions are declined, manual entry and paste/share parsing remain
+available.
 
 For iOS's Share Extension (optional but recommended), follow
 `ios/README-share-extension.md` — it requires one manual step in Xcode that

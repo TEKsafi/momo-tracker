@@ -12,9 +12,15 @@ jobs:
       - run: flutter pub get
       - name: Patch telephony plugin namespace
         run: |
-          sed -i "/android {/a\\    namespace 'com.shounakmulay.telephony'" /home/runner/.pub-cache/hosted/pub.dev/telephony-0.2.0/android/build.gradle
+          plugin_gradle="${PUB_CACHE:-$HOME/.pub-cache}/hosted/pub.dev/telephony-0.2.0/android/build.gradle"
+          test -f "$plugin_gradle"
+          grep -q "namespace 'com.shounakmulay.telephony'" "$plugin_gradle" || \
+            sed -i "/^android {/a\\    namespace 'com.shounakmulay.telephony'" "$plugin_gradle"
+      - run: flutter analyze lib test
+      - run: flutter test
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
