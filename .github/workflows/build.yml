@@ -10,6 +10,9 @@ jobs:
           flutter-version: '3.47.4'
           channel: 'stable'
       - run: flutter pub get
+      - name: Patch telephony plugin namespace
+        run: |
+          sed -i "/android {/a\\    namespace 'com.shounakmulay.telephony'" /home/runner/.pub-cache/hosted/pub.dev/telephony-0.2.0/android/build.gradle
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
