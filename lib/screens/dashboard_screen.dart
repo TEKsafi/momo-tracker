@@ -17,6 +17,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   List<Budget> _budgets = [];
   Budget? _active;
+  List<Transaction> _allTxs = [];
   List<Transaction> _txs = [];
   List<Allocation> _allocations = [];
   String _userName = '';
@@ -41,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _userName = (name.isNotEmpty ? name : emailUsername).split(' ').first;
       _budgets = budgets;
       _active = budgets.firstWhere((b) => b.id == activeId, orElse: () => budgets.first);
+      _allTxs = txs;
       _txs = txs.where((t) => t.budgetId == _active!.id).toList()..sort((a, b) => b.date.compareTo(a.date));
       _allocations = allocations;
       _loading = false;
@@ -70,6 +72,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Your budgets', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              TextButton.icon(
+                onPressed: _showAddBudgetDialog,
+                icon: const Icon(Icons.add, size: 17),
+                label: const Text('Add budget'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 166,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _budgets.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => _budgetCard(_budgets[index], money),
+            ),
+          ),
+          const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -249,5 +273,158 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _budgetCard(Budget budget, NumberFormat money) {
+    final balance = AllocationService.envelopeBalance(_allocations, _allTxs, budget.id);
+    final selected = budget.id == _active!.id;
+    final color = _budgetColor(budget);
+    return SizedBox(
+      width: 218,
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: selected ? color.withValues(alpha: 0.14) : null,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () async {
+            await LocalStore.setActiveBudgetId(budget.id);
+            await _load();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 17,
+                      backgroundColor: color.withValues(alpha: 0.16),
+                      child: Icon(_budgetIcon(budget), size: 18, color: color),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(budget.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                    ),
+                    if (selected) Icon(Icons.check_circle, size: 17, color: color),
+                  ],
+                ),
+                const Spacer(),
+                Text('Available now', style: TextStyle(fontSize: 11.5, color: AppColors.mutedFor(context))),
+                const SizedBox(height: 3),
+                Text('${money.format(balance)} ${budget.currency}', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: balance < 0 ? AppColors.negative : AppColors.textFor(context))),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 32,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showAddAmountDialog(budget),
+                    icon: const Icon(Icons.add, size: 15),
+                    label: const Text('Add amount', style: TextStyle(fontSize: 11.5)),
+                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: color, side: BorderSide(color: color.withValues(alpha: 0.45))),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _budgetIcon(Budget budget) {
+    switch (budget.name.toLowerCase()) {
+      case 'personal':
+        return Icons.person_outline;
+      case 'trip':
+        return Icons.luggage_outlined;
+      case 'business':
+        return Icons.business_center_outlined;
+      default:
+        return Icons.account_balance_wallet_outlined;
+    }
+  }
+
+  Color _budgetColor(Budget budget) {
+    switch (budget.name.toLowerCase()) {
+      case 'personal':
+        return AppColors.accent;
+      case 'trip':
+        return AppColors.positive;
+      case 'business':
+        return AppColors.warn;
+      default:
+        return const Color(0xFF38BDF8);
+    }
+  }
+
+  Future<void> _showAddAmountDialog(Budget budget) async {
+    final controller = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Add to ${budget.name}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Amount (${budget.currency})', hintText: 'e.g. 50,000'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text.trim().replaceAll(',', ''));
+              if (value == null || value <= 0) return;
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Add amount'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null) return;
+    await AllocationService.allocate(budgetId: budget.id, amount: amount, note: 'Added from dashboard');
+    await LocalStore.setActiveBudgetId(budget.id);
+    await _load();
+  }
+
+  Future<void> _showAddBudgetDialog() async {
+    final nameController = TextEditingController();
+    final limitController = TextEditingController();
+    final result = await showDialog<Budget>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Create a budget'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameController, autofocus: true, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Budget name', hintText: 'e.g. School')),
+            const SizedBox(height: 12),
+            TextField(controller: limitController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Monthly limit (optional)', hintText: 'e.g. 100,000')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              final limit = double.tryParse(limitController.text.trim().replaceAll(',', '')) ?? 0;
+              if (name.isEmpty) return;
+              Navigator.pop(dialogContext, Budget(id: LocalStore.uuid.v4(), name: name, monthlyLimit: limit));
+            },
+            child: const Text('Create budget'),
+          ),
+        ],
+      ),
+    );
+    nameController.dispose();
+    limitController.dispose();
+    if (result == null) return;
+    final budgets = [..._budgets, result];
+    await LocalStore.saveBudgets(budgets);
+    await LocalStore.setActiveBudgetId(result.id);
+    await _load();
   }
 }

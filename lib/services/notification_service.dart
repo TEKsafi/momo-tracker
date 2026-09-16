@@ -35,9 +35,16 @@ class NotificationService {
     enableVibration: true,
   );
 
+  static const _scheduledDarwinDetails = DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+  );
+
   static Future<void> init({required void Function() onTapCheckin}) async {
     if (_initialized) return;
     tzdata.initializeTimeZones();
+    _setDeviceTimezone();
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false);
@@ -59,6 +66,16 @@ class NotificationService {
     }
 
     _initialized = true;
+  }
+
+  static void _setDeviceTimezone() {
+    final now = DateTime.now();
+    tz.setLocalLocation(tz.Location(
+      'device',
+      const <int>[],
+      const <int>[],
+      [tz.TimeZone(now.timeZoneOffset.inMilliseconds, isDst: false, abbreviation: now.timeZoneName)],
+    ));
   }
 
   static Future<void> notifyTransactionLogged(Transaction tx, String currency) async {
@@ -87,7 +104,7 @@ class NotificationService {
       'Did you spend or receive cash today?',
       "Log anything that didn't come through as a text — takes a few seconds.",
       scheduled,
-      const NotificationDetails(android: _checkinChannel),
+      const NotificationDetails(android: _checkinChannel, iOS: _scheduledDarwinDetails, macOS: _scheduledDarwinDetails),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
@@ -109,7 +126,7 @@ class NotificationService {
       'Record cash on hand',
       'Did you spend or receive cash? Add it before you forget.',
       repeat,
-      const NotificationDetails(android: _cashReminderChannel),
+      const NotificationDetails(android: _cashReminderChannel, iOS: _scheduledDarwinDetails, macOS: _scheduledDarwinDetails),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: 'daily_checkin',
     );

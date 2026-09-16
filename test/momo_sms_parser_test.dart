@@ -27,11 +27,11 @@ void main() {
       expect(r.fee, 0);
     });
 
-    test('parses a received transaction message with balance and FT id', () {
+    test('parses a merchant transaction message with balance and FT id', () {
       final r = MomoSmsParser.parse(
         "*164*S*Y'ello, A transaction of 1,000 RWF by AC GROUP LTD AC GROUP LTD was completed at 2026-08-09 16:56:20. Balance:1536 RWF. Fee  0 RWF. FT Id: 29757221621. ET Id: 9160bdf0-8a24-4adc-8444-86fcb096790d.*RW#",
       );
-      expect(r.type, TxType.income);
+      expect(r.type, TxType.expense);
       expect(r.amount, 1000);
       expect(r.counterparty, 'AC GROUP LTD AC GROUP LTD');
       expect(r.balance, 1536);
@@ -58,6 +58,8 @@ void main() {
       expect(r.amount, 180);
       expect(r.fee, 20);
       expect(r.momoTxId, '30013337577');
+      expect(r.counterparty, 'SAFARI SIKUBWABO');
+      expect(r.balance, 896);
       expect(r.date, isNotNull);
       expect(Transaction(
         id: 'test', budgetId: 'test', type: TxType.expense, amount: r.amount!,
@@ -90,6 +92,86 @@ void main() {
       expect(r.type, TxType.expense);
       expect(r.amount, 15000);
       expect(r.counterparty, 'Marie Uwase');
+    });
+
+    test('parses the supplied outgoing payment and transfer formats', () {
+      final messages = [
+        (
+          '*164*S*Y\'ello, A transaction of 250 RWF by AC GROUP LTD AC GROUP LTD was completed at 2026-09-04 15:33:29. Balance:26 RWF. Fee  0 RWF. FT Id: 30338942540. ET Id: f2fc7a12-085b-45ff-9649-7f275d61dee5.*RW#',
+          250.0,
+          0.0,
+          26.0,
+          'AC GROUP LTD AC GROUP LTD',
+          '30338942540',
+        ),
+        (
+          '*162*TxId:30324114844*S*Your payment of 23500 RWF to Mokash Savings with token  and ET Id: 20260903000000009037143482 was completed at 2026-09-03 20:51:47. Fee 0 RWF. Balance: 276 RWF .',
+          23500.0,
+          0.0,
+          276.0,
+          'Mokash Savings',
+          '30324114844',
+        ),
+        (
+          '*165*S*2500 RWF transferred to Chance James Emmanuel SHEMA (250788675241) at 2026-09-01 17:52:51 .Fee: 100RWF.Balance: 21276RWF.*RW#',
+          2500.0,
+          100.0,
+          21276.0,
+          'Chance James Emmanuel SHEMA',
+          null,
+        ),
+        (
+          'TxId:30253781431*S*Your payment of 520 RWF to Odette 17621 was completed at 2026-08-31 20:50:06.  Balance: 23,876 RWF. Fee 0 RWF.*EN#',
+          520.0,
+          0.0,
+          23876.0,
+          'Odette 17621',
+          '30253781431',
+        ),
+        (
+          '*165*S*500 RWF transferred to Jean Paul NDAYISENGA (250780973278) at 2026-08-31 20:28:32 .Fee: 20RWF.Balance: 24396RWF.*RW#',
+          500.0,
+          20.0,
+          24396.0,
+          'Jean Paul NDAYISENGA',
+          null,
+        ),
+        (
+          'TransactionId: 30252235128 Your payment of 6230 RWF to Shyaka foste with token and ET Id:  SUCCESSFUL at 2026-08-31T19:55:04.111+02:00.Fee:20 RWF. Balance 24916 RWF.',
+          6230.0,
+          20.0,
+          24916.0,
+          'Shyaka foste',
+          '30252235128',
+        ),
+        (
+          'TransactionId: 30247691472 Your payment of 30600 RWF to Denise UWINEZA with token and ET Id:  SUCCESSFUL at 2026-08-31T17:49:40.018+02:00.Fee:20 RWF. Balance 31166 RWF.',
+          30600.0,
+          20.0,
+          31166.0,
+          'Denise UWINEZA',
+          '30247691472',
+        ),
+        (
+          'TxId:30552904394*S*Your payment of 600 RWF to Chantal 1180006 was completed at 2026-09-14 07:32:26.  Balance: 36 RWF. Fee 0 RWF.*EN#',
+          600.0,
+          0.0,
+          36.0,
+          'Chantal 1180006',
+          '30552904394',
+        ),
+      ];
+
+      for (final message in messages) {
+        final r = MomoSmsParser.parse(message.$1);
+        expect(r.type, TxType.expense, reason: message.$1);
+        expect(r.amount, message.$2, reason: message.$1);
+        expect(r.fee, message.$3, reason: message.$1);
+        expect(r.balance, message.$4, reason: message.$1);
+        expect(r.counterparty, message.$5, reason: message.$1);
+        if (message.$6 != null) expect(r.momoTxId, message.$6, reason: message.$1);
+        expect(r.date, isNotNull, reason: message.$1);
+      }
     });
 
     test('creates default personal, business, and trip budgets', () async {

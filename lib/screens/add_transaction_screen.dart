@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../services/local_store.dart';
@@ -29,6 +30,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _accountId;
   DateTime _date = DateTime.now();
   ParsedMomoMessage? _lastParsed;
+  bool _notePromptShown = false;
 
   @override
   void initState() {
@@ -63,6 +65,89 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _category = MomoSmsParser.guessCategory(parsed);
       if (parsed.date != null) _date = parsed.date!;
     });
+    _promptForNote();
+  }
+
+  void _promptForNote() {
+    if (_notePromptShown || !mounted) return;
+    _notePromptShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showNotePrompt();
+    });
+  }
+
+  Future<void> _showNotePrompt() async {
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss note reminder',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.edit_note_outlined, color: AppColors.accent),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text('Add a quick note', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'A short note helps you remember what this money was used for later.',
+                          style: TextStyle(fontSize: 12.5, color: AppColors.mutedFor(context)),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _noteController,
+                          autofocus: true,
+                          maxLines: 3,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(hintText: 'e.g. School supplies or lunch with Sarah'),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            child: const Text('Done'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 180),
+    );
   }
 
   Future<void> _save() async {
