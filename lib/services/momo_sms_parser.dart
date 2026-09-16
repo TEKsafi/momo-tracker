@@ -29,12 +29,17 @@ class ParsedMomoMessage {
 /// Parses MTN MoMo notification SMS text into structured data.
 class MomoSmsParser {
   static final RegExp _amount = RegExp(r'([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _balance = RegExp(r'new balance:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _fee = RegExp(r'Fee (?:was|paid)?:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _txId = RegExp(r'Financial Transaction Id:?\s*(\w+)', caseSensitive: false);
-  static final RegExp _dateTime = RegExp(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})');
+  static final RegExp _balance = RegExp(r'(?:new )?balance:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
+  static final RegExp _fee = RegExp(r'Fee\s*(?:was|paid)?\s*:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
+  static final RegExp _txId = RegExp(r'(?:Financial Transaction Id|TransactionId|TxId|FT\s+Id|ET\s+Id)\s*:?\s*(\w+)', caseSensitive: false);
+  static final RegExp _dateTime = RegExp(r'(\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2})?)');
 
   static final List<_Pattern> _patterns = [
+    _Pattern(
+      type: TxType.income,
+      category: 'Other',
+      regex: RegExp(r'A transaction of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*by\s+(.+?)\s+was completed', caseSensitive: false),
+    ),
     _Pattern(
       type: TxType.income,
       category: 'Other',
@@ -48,7 +53,17 @@ class MomoSmsParser {
     _Pattern(
       type: TxType.expense,
       category: 'Other',
-      regex: RegExp(r"transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z .'-]+?)(?:\s*\(|\s+at)", caseSensitive: false),
+      regex: RegExp(r"payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+(.+?)\s+(?:SUCCESSFUL|was completed)", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      category: 'Other',
+      regex: RegExp(r"transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z .'-]+?)(?:\s*\([^)]*\))?\s+at", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      category: 'Other',
+      regex: RegExp(r"([\d,]+(?:\.\d+)?)\s*RWF\s*transferred\s*to\s+([A-Za-z .'-]+?)(?:\s*\([^)]*\))?\s+at", caseSensitive: false),
     ),
     _Pattern(
       type: TxType.expense,

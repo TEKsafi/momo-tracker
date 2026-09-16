@@ -91,7 +91,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.search_off, size: 32, color: AppColors.muted),
+                          const Icon(Icons.search_off, size: 32, color: AppColors.darkMuted),
                           const SizedBox(height: 10),
                           Text(
                             hasActiveFilter ? 'Nothing matches' : 'No transactions yet',
@@ -100,7 +100,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           const SizedBox(height: 4),
                           Text(
                             hasActiveFilter ? 'Try a different search term or filter.' : 'Add one manually, or send a MoMo message our way.',
-                            style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+                            style: const TextStyle(color: AppColors.darkMuted, fontSize: 12.5),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -121,12 +121,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: Icon(isIncome ? Icons.arrow_upward : style.icon, color: isIncome ? AppColors.positive : style.color, size: 17),
                         ),
                         title: Text(t.note.isNotEmpty ? t.note : t.category, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                        subtitle: Text('${t.category} · ${DateFormat('dd MMM yyyy').format(t.date)}', style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                        subtitle: Text('${t.category} · ${DateFormat('dd MMM yyyy').format(t.date)}', style: const TextStyle(fontSize: 11.5, color: AppColors.darkMuted)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('${isIncome ? '+' : '-'}${money.format(t.amount)}', style: TextStyle(fontWeight: FontWeight.w700, color: isIncome ? AppColors.positive : AppColors.negative)),
-                            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.muted), onPressed: () => _delete(t.id)),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('${isIncome ? '+' : '-'}${money.format(t.amount)}', style: TextStyle(fontWeight: FontWeight.w700, color: isIncome ? AppColors.positive : AppColors.negative)),
+                                if (t.fee != null)
+                                  Text('Fee ${money.format(t.transactionFee)}', style: const TextStyle(fontSize: 10, color: AppColors.darkMuted)),
+                              ],
+                            ),
+                            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.darkMuted), onPressed: () => _delete(t.id)),
                           ],
                         ),
                       );

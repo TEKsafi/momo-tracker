@@ -6,7 +6,12 @@ import '../services/momo_sms_parser.dart';
 import '../theme/app_theme.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  final ParsedMomoMessage? initialParsed;
+  final String? initialBudgetId;
+  final String? initialSource;
+
+  const AddTransactionScreen({super.key, this.initialParsed, this.initialBudgetId, this.initialSource});
+
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
@@ -17,7 +22,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _noteController = TextEditingController();
   TxType _type = TxType.expense;
   String? _category;
+  String? _budgetId;
   List<String> _categories = ['Other'];
+  List<Budget> _budgets = const [];
+  List<MoneyAccount> _accounts = const [];
+  String? _accountId;
   DateTime _date = DateTime.now();
   ParsedMomoMessage? _lastParsed;
 
@@ -25,15 +34,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _loadCategories();
+    if (widget.initialParsed != null) {
+      _applyParsed(widget.initialParsed!);
+    }
   }
 
   Future<void> _loadCategories() async {
     final budgets = await LocalStore.getBudgets();
-    final activeId = await LocalStore.getActiveBudgetId();
+    final accounts = await LocalStore.getMoneyAccounts();
+    final activeId = widget.initialBudgetId ?? await LocalStore.getActiveBudgetId();
     final active = budgets.firstWhere((b) => b.id == activeId, orElse: () => budgets.first);
     setState(() {
+      _budgets = budgets;
+      _budgetId = active.id;
       _categories = active.categories;
       _category = active.categories.first;
+      _accounts = accounts;
+      _accountId = accounts.isEmpty ? null : accounts.first.id;
     });
   }
 
@@ -54,19 +71,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid amount.')));
       return;
     }
-    final activeId = await LocalStore.getActiveBudgetId();
+
+    final selectedBudgetId = _budgetId ?? await LocalStore.getActiveBudgetId();
+    if (_budgetId != null) {
+      await LocalStore.setActiveBudgetId(_budgetId!);
+    }
+
     final tx = Transaction(
       id: LocalStore.uuid.v4(),
-      budgetId: activeId,
+      budgetId: selectedBudgetId,
       type: _type,
       amount: amount,
       category: _category ?? 'Other',
       note: _noteController.text.trim(),
       date: _date,
-      source: _lastParsed != null ? 'sms-paste' : 'manual',
+      source: widget.initialSource ?? (_lastParsed != null ? 'sms-paste' : 'manual'),
       counterparty: _lastParsed?.counterparty,
       fee: _lastParsed?.fee,
       momoTxId: _lastParsed?.momoTxId,
+      accountId: _accountId,
     );
     await LocalStore.addTransaction(tx);
     if (mounted) Navigator.pop(context, true);
@@ -157,6 +180,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           const Text('Amount', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.muted)),
           const SizedBox(height: 6),
           TextField(controller: _amountController, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+          const SizedBox(height: 16),
+          const Text('Budget', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.muted)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: _budgetId,
+            items: _budgets.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              final selected = _budgets.firstWhere((b) => b.id == v, orElse: () => _budgets.first);
+              setState(() {
+                _budgetId = v;
+                _categories = selected.categories;
+                _category = selected.categories.first;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          const Text('Money source', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.muted)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: _accountId,
+            items: _accounts.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name))).toList(),
+            onChanged: (value) => setState(() => _accountId = value),
+          ),
           const SizedBox(height: 16),
           const Text('Category', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.muted)),
           const SizedBox(height: 6),

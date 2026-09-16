@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.safari.momo_tracker"
+    namespace = "com.safari.budgeta"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.safari.momo_tracker"
+        applicationId = "com.safari.budgeta"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

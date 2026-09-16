@@ -1,4 +1,4 @@
-package com.safari.momo_tracker
+package com.safari.budgeta
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -24,6 +24,17 @@ class NotificationService {
     priority: Priority.high,
   );
 
+  static const _cashReminderId = 9002;
+  static const _cashReminderChannel = AndroidNotificationDetails(
+    'cash_reminders',
+    'Cash reminders',
+    channelDescription: 'Reminds you to record cash transactions',
+    importance: Importance.high,
+    priority: Priority.high,
+    playSound: true,
+    enableVibration: true,
+  );
+
   static Future<void> init({required void Function() onTapCheckin}) async {
     if (_initialized) return;
     tzdata.initializeTimeZones();
@@ -85,6 +96,26 @@ class NotificationService {
   }
 
   static Future<void> cancelDailyCheckin() async => _plugin.cancel(_dailyCheckinId);
+
+  static Future<void> scheduleCashReminder({required int intervalMinutes}) async {
+    await _plugin.cancel(_cashReminderId);
+    final repeat = intervalMinutes <= 1
+        ? RepeatInterval.everyMinute
+        : intervalMinutes <= 60
+            ? RepeatInterval.hourly
+            : RepeatInterval.daily;
+    await _plugin.periodicallyShow(
+      _cashReminderId,
+      'Record cash on hand',
+      'Did you spend or receive cash? Add it before you forget.',
+      repeat,
+      const NotificationDetails(android: _cashReminderChannel),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: 'daily_checkin',
+    );
+  }
+
+  static Future<void> cancelCashReminder() async => _plugin.cancel(_cashReminderId);
 
   static const _dailyCheckinId = 9001;
 }

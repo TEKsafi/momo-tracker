@@ -21,6 +21,13 @@ final navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LocalStore.seedIfEmpty();
+  final settings = await LocalStore.getSettings();
+  final savedMode = settings['themeMode'];
+  appThemeController.value = switch (savedMode) {
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.dark,
+  };
   runApp(const MomoTrackerApp());
 }
 
@@ -29,12 +36,19 @@ class MomoTrackerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Budgeta — MoMo Tracker',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey,
-      theme: buildAppTheme(),
-      home: const AppEntry(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: appThemeController,
+      builder: (context, mode, child) {
+        return MaterialApp(
+          title: 'Budgeta',
+          debugShowCheckedModeBanner: false,
+          navigatorKey: navigatorKey,
+          themeMode: mode,
+          theme: buildAppTheme(Brightness.light),
+          darkTheme: buildAppTheme(Brightness.dark),
+          home: const AppEntry(),
+        );
+      },
     );
   }
 }
@@ -99,14 +113,32 @@ class _RootShellState extends State<RootShell> {
     // Android: listener for incoming SMS from any enabled source while the app is running.
     final settings = await LocalStore.getSettings();
     if (settings['autoReadSms'] == true) {
-      await SmsService.startListening(onNewTransaction: (_) async {
-        if (mounted) setState(() {}); // refresh whichever tab is showing
-      });
+      await SmsService.startListening(
+        onParsedMessage: (parsed) async {
+          if (!mounted) return;
+          final activeBudgetId = await LocalStore.getActiveBudgetId();
+          final saved = await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AddTransactionScreen(
+                initialParsed: parsed,
+                initialBudgetId: activeBudgetId,
+                initialSource: 'sms-auto',
+              ),
+            ),
+          );
+          if (saved == true && mounted) setState(() {});
+        },
+      );
     }
     if (settings['dailyCheckinEnabled'] == true) {
       await NotificationService.scheduleDailyCheckin(
         hour: settings['dailyCheckinHour'] ?? 20,
         minute: settings['dailyCheckinMinute'] ?? 0,
+      );
+    }
+    if (settings['cashReminderEnabled'] == true) {
+      await NotificationService.scheduleCashReminder(
+        intervalMinutes: settings['cashReminderIntervalMinutes'] ?? 60,
       );
     }
 
@@ -116,7 +148,14 @@ class _RootShellState extends State<RootShell> {
       if (!parsed.isConfident) return;
       // Hand off to Add Transaction pre-filled so the user confirms before
       // saving, rather than silently logging something shared by mistake.
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddTransactionScreen()));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AddTransactionScreen(
+            initialParsed: parsed,
+            initialSource: 'sms-share',
+          ),
+        ),
+      );
     });
   }
 

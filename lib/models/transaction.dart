@@ -14,6 +14,7 @@ class Transaction {
   final String? counterparty;
   final double? fee;
   final String? momoTxId;
+  final String? accountId;
 
   Transaction({
     required this.id,
@@ -27,7 +28,17 @@ class Transaction {
     this.counterparty,
     this.fee,
     this.momoTxId,
+    this.accountId,
   });
+
+  double get transactionFee => fee ?? 0;
+
+  /// The amount that changes the real MoMo balance for this transaction.
+  double get cashImpact => type == TxType.income
+      ? amount - transactionFee
+      : -(amount + transactionFee);
+
+  double get totalCost => type == TxType.expense ? amount + transactionFee : amount;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -41,6 +52,7 @@ class Transaction {
         'counterparty': counterparty,
         'fee': fee,
         'momoTxId': momoTxId,
+        'accountId': accountId,
       };
 
   factory Transaction.fromJson(Map<String, dynamic> j) => Transaction(
@@ -55,6 +67,25 @@ class Transaction {
         counterparty: j['counterparty'],
         fee: j['fee'] == null ? null : (j['fee'] as num).toDouble(),
         momoTxId: j['momoTxId'],
+        accountId: j['accountId'],
+      );
+}
+
+class MoneyAccount {
+  final String id;
+  String name;
+  String type;
+  String currency;
+
+  MoneyAccount({required this.id, required this.name, required this.type, this.currency = 'RWF'});
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'type': type, 'currency': currency};
+
+  factory MoneyAccount.fromJson(Map<String, dynamic> json) => MoneyAccount(
+        id: json['id'],
+        name: json['name'],
+        type: json['type'] ?? 'other',
+        currency: json['currency'] ?? 'RWF',
       );
 }
 

@@ -33,7 +33,7 @@ class InsightsService {
     final scoped = _scopeToMonth(txs.where((t) => t.type == TxType.expense).toList(), month);
     final totals = <String, double>{};
     for (final t in scoped) {
-      totals[t.category] = (totals[t.category] ?? 0) + t.amount;
+      totals[t.category] = (totals[t.category] ?? 0) + t.totalCost;
     }
     final total = totals.values.fold<double>(0, (s, v) => s + v);
     final list = totals.entries.map((e) => CategoryInsight(e.key, e.value, total == 0 ? 0 : e.value / total)).toList();
@@ -45,9 +45,9 @@ class InsightsService {
     final now = month ?? DateTime.now();
     final prevMonth = DateTime(now.year, now.month - 1);
     final thisTotal = _scopeToMonth(txs.where((t) => t.type == TxType.expense).toList(), now)
-        .fold<double>(0, (s, t) => s + t.amount);
+        .fold<double>(0, (s, t) => s + t.totalCost);
     final lastTotal = _scopeToMonth(txs.where((t) => t.type == TxType.expense).toList(), prevMonth)
-        .fold<double>(0, (s, t) => s + t.amount);
+        .fold<double>(0, (s, t) => s + t.totalCost);
     return MonthComparison(thisTotal, lastTotal);
   }
 

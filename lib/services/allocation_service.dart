@@ -13,10 +13,10 @@ class AllocationService {
     final allocated = allocations.where((a) => a.budgetId == budgetId).fold<double>(0, (s, a) => s + a.amount);
     final spent = transactions
         .where((t) => t.budgetId == budgetId && t.type == TxType.expense)
-        .fold<double>(0, (s, t) => s + t.amount);
+        .fold<double>(0, (s, t) => s + t.totalCost);
     final received = transactions
         .where((t) => t.budgetId == budgetId && t.type == TxType.income)
-        .fold<double>(0, (s, t) => s + t.amount);
+        .fold<double>(0, (s, t) => s + t.amount - t.transactionFee);
     return allocated + received - spent;
   }
 

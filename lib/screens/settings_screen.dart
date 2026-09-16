@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../models/transaction.dart';
 import '../services/local_store.dart';
 import '../services/sms_service_android.dart';
 import '../services/notification_service.dart';
@@ -15,6 +16,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   Map<String, dynamic> _settings = {};
+  List<MoneyAccount> _accounts = [];
 
   @override
   void initState() {
@@ -24,7 +26,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final s = await LocalStore.getSettings();
-    setState(() => _settings = s);
+      final accounts = await LocalStore.getMoneyAccounts();
+      setState(() {
+        _settings = s;
+        _accounts = accounts;
+      });
   }
 
   Future<void> _toggleAutoSms(bool value) async {
@@ -59,6 +65,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _setThemeMode(ThemeMode mode) async {
+    appThemeController.value = mode;
+    _settings['themeMode'] = switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.dark => 'dark',
+      ThemeMode.system => 'dark',
+    };
+    await LocalStore.saveSettings(_settings);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _pickCheckinTime() async {
     final current = TimeOfDay(hour: _settings['dailyCheckinHour'] ?? 20, minute: _settings['dailyCheckinMinute'] ?? 0);
     final picked = await showTimePicker(context: context, initialTime: current);
@@ -73,9 +90,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _addAccount() async {
+    final nameController = TextEditingController();
+    var type = 'mobile money';
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.card,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Add money source', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 14),
+              TextField(controller: nameController, autofocus: true, decoration: const InputDecoration(labelText: 'Name', hintText: 'Airtel Money or Bank account')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                items: const [
+                  DropdownMenuItem(value: 'mobile money', child: Text('Mobile money')),
+                  DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                  DropdownMenuItem(value: 'cash', child: Text('Cash on hand')),
+                ],
+                onChanged: (value) => setSheetState(() => type = value ?? type),
+                decoration: const InputDecoration(labelText: 'Type'),
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Add source')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (saved == true && nameController.text.trim().isNotEmpty) {
+      final accounts = [..._accounts, MoneyAccount(id: LocalStore.uuid.v4(), name: nameController.text.trim(), type: type)];
+      await LocalStore.saveMoneyAccounts(accounts);
+      setState(() => _accounts = accounts);
+    }
+  }
+
+  Future<void> _setCashReminder(bool enabled) async {
+    setState(() => _settings['cashReminderEnabled'] = enabled);
+    await LocalStore.saveSettings(_settings);
+    if (enabled) {
+      await NotificationService.scheduleCashReminder(intervalMinutes: _settings['cashReminderIntervalMinutes'] ?? 60);
+    } else {
+      await NotificationService.cancelCashReminder();
+    }
+  }
+
+  Future<void> _setCashReminderInterval(int minutes) async {
+    setState(() => _settings['cashReminderIntervalMinutes'] = minutes);
+    await LocalStore.saveSettings(_settings);
+    if (_settings['cashReminderEnabled'] == true) {
+      await NotificationService.scheduleCashReminder(intervalMinutes: minutes);
+    }
+  }
+
   Future<void> _editProfile() async {
     final nameController = TextEditingController(text: _settings['name'] ?? '');
     final emailController = TextEditingController(text: _settings['email'] ?? '');
+    final phoneController = TextEditingController(text: _settings['phone'] ?? '');
     final saved = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: AppColors.card,
@@ -95,6 +173,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Text('Email', style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
             const SizedBox(height: 6),
             TextField(controller: emailController, keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 14),
+              const Text('Phone number', style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
+              const SizedBox(height: 6),
+              TextField(controller: phoneController, keyboardType: TextInputType.phone),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save changes')),
           ],
@@ -104,6 +186,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (saved == true) {
       _settings['name'] = nameController.text.trim();
       _settings['email'] = emailController.text.trim();
+      _settings['phone'] = phoneController.text.trim();
       await LocalStore.saveSettings(_settings);
       _load();
     }
@@ -113,9 +196,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final name = (_settings['name'] as String?) ?? '';
     final email = (_settings['email'] as String?) ?? '';
-    final initials = name.trim().isEmpty
+    final emailUsername = email.contains('@') ? email.split('@').first.trim() : '';
+    final displayName = name.trim().isNotEmpty ? name.trim() : emailUsername;
+    final initials = displayName.isEmpty
         ? '?'
-        : name.trim().split(RegExp(r'\s+')).map((w) => w[0]).take(2).join().toUpperCase();
+      : displayName.split(RegExp(r'\s+')).map((w) => w[0]).take(2).join().toUpperCase();
     final checkinHour = _settings['dailyCheckinHour'] ?? 20;
     final checkinMinute = _settings['dailyCheckinMinute'] ?? 0;
     final checkinTimeLabel = TimeOfDay(hour: checkinHour, minute: checkinMinute).format(context);
@@ -139,14 +224,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(name.isEmpty ? 'Add your name' : name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                            Text(displayName.isEmpty ? 'Add your profile details' : displayName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                           if (email.isNotEmpty) Text(email, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                            if ((_settings['phone'] as String?)?.isNotEmpty == true) Text(_settings['phone'], style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                         ],
                       ),
                     ),
                     const Icon(Icons.chevron_right, color: AppColors.muted),
                   ],
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+            const Text('Money sources', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            Card(
+              child: Column(
+                children: [
+                  ..._accounts.map((account) => ListTile(
+                        leading: Icon(account.type == 'cash' ? Icons.payments_outlined : account.type == 'bank' ? Icons.account_balance_outlined : Icons.account_balance_wallet_outlined, color: AppColors.accent),
+                        title: Text(account.name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                        subtitle: Text(account.type, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                      )),
+                  ListTile(leading: const Icon(Icons.add, color: AppColors.accent), title: const Text('Add MTN, Airtel, bank, or cash', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)), onTap: _addAccount),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          const Text('Appearance', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Theme', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 10),
+                  SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(value: ThemeMode.light, icon: Icon(Icons.light_mode_rounded), label: Text('Light')),
+                      ButtonSegment(value: ThemeMode.dark, icon: Icon(Icons.dark_mode_rounded), label: Text('Dark')),
+                    ],
+                    selected: {appThemeController.value},
+                    onSelectionChanged: (value) => _setThemeMode(value.first),
+                    showSelectedIcon: false,
+                  ),
+                ],
               ),
             ),
           ),
@@ -258,6 +383,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: _pickCheckinTime,
                   ),
                 ],
+                  const Divider(height: 1, color: AppColors.border),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Cash recording reminders', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)), SizedBox(height: 3), Text('Vibrates and asks you to record cash on hand', style: TextStyle(fontSize: 11.5, color: AppColors.muted))])),
+                        Switch(value: _settings['cashReminderEnabled'] == true, onChanged: _setCashReminder, activeThumbColor: AppColors.accent),
+                      ],
+                    ),
+                  ),
+                  if (_settings['cashReminderEnabled'] == true) ...[
+                    const Divider(height: 1, color: AppColors.border),
+                    ListTile(
+                      title: const Text('Reminder interval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: const Text('Background delivery may be delayed by the phone', style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                      trailing: DropdownButton<int>(value: (_settings['cashReminderIntervalMinutes'] ?? 60) <= 1 ? 1 : 60, items: const [DropdownMenuItem(value: 1, child: Text('1 min')), DropdownMenuItem(value: 60, child: Text('1 hour'))], onChanged: (value) { if (value != null) _setCashReminderInterval(value); }),
+                    ),
+                  ],
               ],
             ),
           ),
@@ -267,9 +410,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: const Text(
+              child: Text(
                 "MoMo tracks one pooled balance. Budgeta can't physically split real money — allocating lets you assign incoming money to a budget, so each one keeps its own running total even though your real MoMo balance stays a single number.",
-                style: TextStyle(fontSize: 12, color: AppColors.muted),
+                style: TextStyle(fontSize: 12, color: AppColors.mutedFor(context)),
               ),
             ),
           ),

@@ -44,14 +44,21 @@ class SmsService {
 
   /// Call once at app startup (Android only) to start listening for new
   /// incoming SMS from any enabled source while the app is running.
-  static Future<void> startListening({required Future<void> Function(Transaction) onNewTransaction}) async {
+  static Future<void> startListening({required Future<void> Function(ParsedMomoMessage parsed) onParsedMessage}) async {
     if (!isSupported) return;
     final granted = await requestPermissions();
     if (!granted) return;
 
     _telephony.listenIncomingSms(
       onNewMessage: (SmsMessage message) async {
-        await _handleMessage(message.address, message.body, onNewTransaction);
+        if (message.body == null || !await _matchesEnabledSource(message.address)) return;
+
+        final parsed = MomoSmsParser.parse(message.body!);
+        if (!parsed.isConfident) return;
+
+        if (parsed.momoTxId != null && await LocalStore.hasMomoTxId(parsed.momoTxId!)) return;
+
+        await onParsedMessage(parsed);
       },
       listenInBackground: false, // set true + configure a background handler for always-on capture
     );
@@ -87,6 +94,7 @@ class SmsService {
     }
 
     final activeBudgetId = await LocalStore.getActiveBudgetId();
+    final accounts = await LocalStore.getMoneyAccounts();
     final tx = Transaction(
       id: LocalStore.uuid.v4(),
       budgetId: activeBudgetId,
@@ -99,6 +107,9 @@ class SmsService {
       counterparty: parsed.counterparty,
       fee: parsed.fee,
       momoTxId: parsed.momoTxId,
+        accountId: accounts.where((a) => a.type == 'mobile money').isEmpty
+          ? null
+          : accounts.where((a) => a.type == 'mobile money').first.id,
     );
     await LocalStore.addTransaction(tx);
     await onNewTransaction(tx);

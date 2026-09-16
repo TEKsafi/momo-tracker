@@ -22,5 +22,5 @@ class CategoryStyle {
     'Other': CategoryStyle(Icons.category_outlined, Color(0xFF8B96A5)),
   };
 
-  static CategoryStyle of(String category) => _map[category] ?? const CategoryStyle(Icons.category_outlined, AppColors.muted);
+  static CategoryStyle of(String category) => _map[category] ?? const CategoryStyle(Icons.category_outlined, AppColors.darkMuted);
 }
