@@ -4,14 +4,16 @@ import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../services/local_store.dart';
 import '../services/momo_sms_parser.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final ParsedMomoMessage? initialParsed;
   final String? initialBudgetId;
   final String? initialSource;
+  final String? initialMomoTxId;
 
-  const AddTransactionScreen({super.key, this.initialParsed, this.initialBudgetId, this.initialSource});
+  const AddTransactionScreen({super.key, this.initialParsed, this.initialBudgetId, this.initialSource, this.initialMomoTxId});
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -173,10 +175,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       source: widget.initialSource ?? (_lastParsed != null ? 'sms-paste' : 'manual'),
       counterparty: _lastParsed?.counterparty,
       fee: _lastParsed?.fee,
-      momoTxId: _lastParsed?.momoTxId,
+      momoTxId: widget.initialMomoTxId ?? _lastParsed?.momoTxId,
       accountId: _accountId,
     );
     await LocalStore.addTransaction(tx);
+
+    final settings = await LocalStore.getSettings();
+    if (settings['notifyOnTransaction'] == true) {
+      final budgets = await LocalStore.getBudgets();
+      final budget = budgets.firstWhere((b) => b.id == selectedBudgetId, orElse: () => budgets.first);
+      await NotificationService.notifyTransactionLogged(tx, budget.currency);
+    }
+
     if (mounted) Navigator.pop(context, true);
   }
 

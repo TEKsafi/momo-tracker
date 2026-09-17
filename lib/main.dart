@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'services/local_store.dart';
+import 'services/native_sms_bridge.dart';
 import 'services/sms_service_android.dart';
 import 'services/share_intent_service.dart';
 import 'services/momo_sms_parser.dart';
@@ -105,28 +108,106 @@ class _RootShellState extends State<RootShell> {
     _initCaptureServices();
   }
 
-  Future<void> _initCaptureServices() async {
-    await NotificationService.init(onTapCheckin: () {
-      navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const DailyCheckinScreen()));
+  Future<void> _handleDetectedMessage(ParsedMomoMessage parsed, {required String source}) async {
+    final referenceId = (parsed.momoTxId ?? '').trim();
+    if (referenceId.isNotEmpty && await LocalStore.hasMomoTxId(referenceId)) return;
+
+    await LocalStore.addNativeSmsDebugEntry({
+      'source': source,
+      'referenceId': referenceId,
+      'body': parsed.rawText,
+      'amount': parsed.amount,
+      'sender': 'native',
+      'type': parsed.type?.name,
     });
 
-    // Android: listener for incoming SMS from any enabled source while the app is running.
+    final currency = (await LocalStore.getBudgets()).isEmpty ? 'RWF' : (await LocalStore.getBudgets()).first.currency;
+    await NotificationService.notifyDetectedTransaction(parsed, currency: currency);
+
+    if (!mounted) return;
+
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('M-Money transaction detected'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${parsed.amount?.toStringAsFixed(0) ?? '-'} $currency'),
+            const SizedBox(height: 8),
+            Text(parsed.counterparty?.isNotEmpty == true ? parsed.counterparty! : 'MoMo payment'),
+            const SizedBox(height: 8),
+            Text(referenceId.isNotEmpty ? 'Ref: $referenceId' : 'No reference ID captured'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Ignore'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Review'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOpen != true) return;
+
+    final activeBudgetId = await LocalStore.getActiveBudgetId();
+    final saved = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddTransactionScreen(
+          initialParsed: parsed,
+          initialBudgetId: activeBudgetId,
+          initialSource: source,
+          initialMomoTxId: referenceId,
+        ),
+      ),
+    );
+    if (saved == true && mounted) setState(() {});
+  }
+
+  Future<void> _initCaptureServices() async {
+    await NotificationService.init(
+      onTapCheckin: () {
+        navigatorKey.currentState?.push(MaterialPageRoute(builder: (_) => const DailyCheckinScreen()));
+      },
+      onTapDetectedTransaction: (parsed) async {
+        final budgetId = await LocalStore.getActiveBudgetId();
+        if (!mounted) return;
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (_) => AddTransactionScreen(
+              initialParsed: parsed,
+              initialBudgetId: budgetId,
+              initialSource: 'sms-auto',
+            ),
+          ),
+        );
+      },
+    );
+
     final settings = await LocalStore.getSettings();
+
     if (settings['autoReadSms'] == true) {
+      if (Platform.isAndroid) {
+        await NativeSmsBridge.startListening(onMessage: (payload) async {
+          final rawBody = (payload['body'] as String?) ?? '';
+          if (rawBody.isEmpty) return;
+
+          final parsed = MomoSmsParser.parse(rawBody);
+          if (!parsed.isConfident) return;
+          await _handleDetectedMessage(parsed, source: 'sms-auto');
+        });
+      }
+
       await SmsService.startListening(
         onParsedMessage: (parsed) async {
-          if (!mounted) return;
-          final activeBudgetId = await LocalStore.getActiveBudgetId();
-          final saved = await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddTransactionScreen(
-                initialParsed: parsed,
-                initialBudgetId: activeBudgetId,
-                initialSource: 'sms-auto',
-              ),
-            ),
-          );
-          if (saved == true && mounted) setState(() {});
+          await _handleDetectedMessage(parsed, source: 'sms-auto');
         },
       );
     }

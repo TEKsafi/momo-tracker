@@ -17,6 +17,8 @@ class LocalStore {
   static const _kGoals = 'momo_savings_goals';
   static const _kMessageSources = 'momo_message_sources';
   static const _kMoneyAccounts = 'momo_money_accounts';
+  static const _kNativeSmsQueue = 'momo_native_sms_queue';
+  static const _kSeenMomoTxIds = 'momo_seen_reference_ids';
   static const uuid = Uuid();
 
   static Future<void> seedIfEmpty() async {
@@ -88,6 +90,10 @@ class LocalStore {
   }
 
   static Future<void> addTransaction(Transaction tx) async {
+    if ((tx.momoTxId ?? '').trim().isNotEmpty) {
+      await rememberMomoTxId(tx.momoTxId!);
+    }
+
     final txs = await getTransactions();
     txs.add(tx);
     await saveTransactions(txs);
@@ -179,10 +185,59 @@ class LocalStore {
     await prefs.setString(_kMessageSources, jsonEncode(sources.map((s) => s.toJson()).toList()));
   }
 
+  static Future<List<Map<String, dynamic>>> getNativeSmsQueue() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kNativeSmsQueue) ?? '[]';
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  static Future<void> saveNativeSmsQueue(List<Map<String, dynamic>> entries) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kNativeSmsQueue, jsonEncode(entries));
+  }
+
+  static Future<void> addNativeSmsDebugEntry(Map<String, dynamic> entry) async {
+    final queue = await getNativeSmsQueue();
+    queue.add({
+      ...entry,
+      'loggedAt': DateTime.now().toIso8601String(),
+    });
+    if (queue.length > 200) {
+      queue.removeRange(0, queue.length - 200);
+    }
+    await saveNativeSmsQueue(queue);
+  }
+
+  static Future<List<String>> getSeenMomoTxIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_kSeenMomoTxIds) ?? const [];
+    return ids.map((id) => id.trim()).where((id) => id.isNotEmpty).toList();
+  }
+
+  static Future<void> rememberMomoTxId(String momoTxId) async {
+    final ref = (momoTxId ?? '').trim();
+    if (ref.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final seen = await getSeenMomoTxIds();
+    if (!seen.contains(ref)) {
+      seen.add(ref);
+      await prefs.setStringList(_kSeenMomoTxIds, seen);
+    }
+  }
+
   /// Have we already logged this MoMo transaction id? Prevents duplicate
   /// entries if the SMS listener fires twice for the same message.
   static Future<bool> hasMomoTxId(String momoTxId) async {
+    final ref = (momoTxId ?? '').trim();
+    if (ref.isEmpty) return false;
+
+    final seen = await getSeenMomoTxIds();
+    if (seen.contains(ref)) return true;
+
     final txs = await getTransactions();
-    return txs.any((t) => t.momoTxId == momoTxId);
+    return txs.any((t) => (t.momoTxId ?? '').trim() == ref);
   }
 }

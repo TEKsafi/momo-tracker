@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import '../models/transaction.dart';
+import 'momo_sms_parser.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
@@ -41,7 +43,10 @@ class NotificationService {
     presentSound: true,
   );
 
-  static Future<void> init({required void Function() onTapCheckin}) async {
+  static Future<void> init({
+    required void Function() onTapCheckin,
+    void Function(ParsedMomoMessage parsed)? onTapDetectedTransaction,
+  }) async {
     if (_initialized) return;
     tzdata.initializeTimeZones();
     _setDeviceTimezone();
@@ -53,7 +58,17 @@ class NotificationService {
     await _plugin.initialize(
       settings,
       onDidReceiveNotificationResponse: (response) {
-        if (response.payload == 'daily_checkin') onTapCheckin();
+        if (response.payload == 'daily_checkin') {
+          onTapCheckin();
+          return;
+        }
+
+        final payload = response.payload ?? '';
+        if (payload.startsWith('sms_review:')) {
+          final rawText = Uri.decodeComponent(payload.substring('sms_review:'.length));
+          final parsed = MomoSmsParser.parse(rawText);
+          onTapDetectedTransaction?.call(parsed);
+        }
       },
     );
 
@@ -76,6 +91,30 @@ class NotificationService {
       const <int>[],
       [tz.TimeZone(now.timeZoneOffset.inMilliseconds, isDst: false, abbreviation: now.timeZoneName)],
     ));
+  }
+
+  static String buildDetectedSummary(ParsedMomoMessage parsed, {required String currency}) {
+    final amount = parsed.amount ?? 0;
+    final formatted = NumberFormat.decimalPattern().format(amount);
+    final amountText = '$formatted $currency';
+    final counterparty = parsed.counterparty?.trim().isNotEmpty == true ? parsed.counterparty!.trim() : 'MoMo transaction';
+    final direction = parsed.type == TxType.income ? 'Received' : 'Spent';
+    return 'Review: $direction $amountText • $counterparty';
+  }
+
+  static Future<void> notifyDetectedTransaction(ParsedMomoMessage parsed, {required String currency}) async {
+    final isIncome = parsed.type == TxType.income;
+    final title = isIncome ? 'Budgeta: Money received' : 'Budgeta: Review transaction';
+    final body = buildDetectedSummary(parsed, currency: currency);
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      NotificationDetails(android: _transactionChannel),
+      payload: 'sms_review:${Uri.encodeComponent(parsed.rawText)}',
+    );
   }
 
   static Future<void> notifyTransactionLogged(Transaction tx, String currency) async {

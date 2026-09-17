@@ -1,6 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+
 import '../models/transaction.dart';
+import '../services/backup_service.dart';
 import '../services/local_store.dart';
 import '../services/sms_service_android.dart';
 import '../services/notification_service.dart';
@@ -147,6 +154,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await LocalStore.saveSettings(_settings);
     if (_settings['cashReminderEnabled'] == true) {
       await NotificationService.scheduleCashReminder(intervalMinutes: minutes);
+    }
+  }
+
+  Future<void> _exportBackup() async {
+    try {
+      final json = await BackupService.exportJson();
+      await Clipboard.setData(ClipboardData(text: json));
+      await SharePlus.instance.share(
+        ShareParams(
+          text: json,
+          subject: 'Budgeta backup',
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Backup exported and ready to share. Keep it before reinstalling.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not export backup. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importBackup() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty || result.files.single.path == null) {
+        return;
+      }
+
+      final file = File(result.files.single.path!);
+      final jsonText = await file.readAsString();
+      final decoded = jsonDecode(jsonText);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Invalid backup format');
+      }
+
+      await BackupService.importAll(decoded);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Backup restored successfully.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Import failed. Please choose a valid Budgeta backup JSON file.')),
+        );
+      }
     }
   }
 
@@ -330,6 +396,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: const Text('Choose which senders count — MoMo, your bank, or a custom one', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
               trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessageSourcesScreen())),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Backup & restore', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.upload_file_outlined, color: AppColors.accent),
+                  title: const Text('Export data', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Save your budgets, transactions, and settings before reinstalling', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                  onTap: _exportBackup,
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                ListTile(
+                  leading: const Icon(Icons.download_outlined, color: AppColors.accent),
+                  title: const Text('Import data', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Restore a previously exported Budgeta backup after reinstalling', style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                  onTap: _importBackup,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),

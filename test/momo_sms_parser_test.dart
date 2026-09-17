@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:budgeta/models/transaction.dart';
 import 'package:budgeta/services/local_store.dart';
 import 'package:budgeta/services/momo_sms_parser.dart';
+import 'package:budgeta/services/notification_service.dart';
 
 void main() {
   group('MomoSmsParser', () {
@@ -182,6 +183,63 @@ void main() {
       final names = budgets.map((b) => b.name.toLowerCase()).toList();
 
       expect(names, containsAll(['personal', 'business', 'trip']));
+    });
+
+    test('builds a clear Budgeta notification summary for detected transactions', () {
+      final parsed = MomoSmsParser.parse(
+        'Your payment of 2,000 RWF to Kigali Coffee Shop has been completed at 2026-09-10 09:12:00. Your new balance: 43,000 RWF. Fee was 0 RWF. Financial Transaction Id: 987654321.',
+      );
+
+      final text = NotificationService.buildDetectedSummary(parsed, currency: 'RWF');
+      expect(text, contains('2,000'));
+      expect(text, contains('Kigali Coffee Shop'));
+      expect(text, contains('Review'));
+    });
+
+    test('parses a direct M-Money transfer alert with reference ID and amount', () {
+      final parsed = MomoSmsParser.parse(
+        'M-Money: You have transferred 5,000 RWF to Jean Paul. Reference: 20260917TX1234. Balance: 18,000 RWF.',
+      );
+
+      expect(parsed.type, TxType.expense);
+      expect(parsed.amount, 5000);
+      expect(parsed.counterparty, 'Jean Paul');
+      expect(parsed.momoTxId, '20260917TX1234');
+    });
+
+    test('parses a direct M-Money incoming money alert with reference ID', () {
+      final parsed = MomoSmsParser.parse(
+        'M-Money: You have received 10,000 RWF from Grace Mugisha. Reference: 20260917RX4321. Your balance: 40,000 RWF.',
+      );
+
+      expect(parsed.type, TxType.income);
+      expect(parsed.amount, 10000);
+      expect(parsed.counterparty, 'Grace Mugisha');
+      expect(parsed.momoTxId, '20260917RX4321');
+    });
+
+    test('dedupes pending and saved MoMo transactions by reference ID', () async {
+      SharedPreferences.setMockInitialValues({});
+      await LocalStore.seedIfEmpty();
+
+      expect(await LocalStore.hasMomoTxId('REF-123'), isFalse);
+
+      await LocalStore.rememberMomoTxId('REF-123');
+      expect(await LocalStore.hasMomoTxId('REF-123'), isTrue);
+
+      final tx = Transaction(
+        id: 'tx-1',
+        budgetId: 'budget-1',
+        type: TxType.expense,
+        amount: 5000,
+        category: 'Other',
+        note: 'Lunch',
+        date: DateTime.now(),
+        momoTxId: 'REF-123',
+      );
+      await LocalStore.addTransaction(tx);
+
+      expect(await LocalStore.hasMomoTxId('REF-123'), isTrue);
     });
 
     test('returns low-confidence result for unrelated text', () {

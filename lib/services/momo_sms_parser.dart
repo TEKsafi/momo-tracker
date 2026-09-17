@@ -26,69 +26,57 @@ class ParsedMomoMessage {
   bool get isConfident => type != null && amount != null;
 }
 
-/// Parses MTN MoMo notification SMS text into structured data.
 class MomoSmsParser {
-  static final RegExp _amount = RegExp(r'([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _balance = RegExp(r'(?:new )?balance\s*:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _fee = RegExp(r'Fee\s*(?:was|paid)?\s*:?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false);
-  static final RegExp _txId = RegExp(r'(?:Financial Transaction Id|TransactionId|TxId|FT\s+Id|ET\s+Id)\s*:?\s*(\w+)', caseSensitive: false);
-  static final RegExp _dateTime = RegExp(r'(\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2})?)');
+  static final RegExp _amount = RegExp(r"([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false);
+  static final RegExp _balance = RegExp(r"(?:new )?balance\s*[:=]?\s*([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false);
+  static final RegExp _fee = RegExp(r"Fee\s*(?:was|paid)?\s*[:=]?\s*([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false);
+  static final RegExp _txId = RegExp(r"(?:Financial Transaction Id|TransactionId|TxId|FT\s+Id|ET\s+Id|Reference)\s*[:=]?\s*([A-Za-z0-9]+)", caseSensitive: false);
+  static final RegExp _dateTime = RegExp(r"(\d{4}-\d{2}-\d{2}[T\s]+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:?\d{2})?)");
 
   static final List<_Pattern> _patterns = [
     _Pattern(
       type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r'A transaction of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*by\s+(.+?)\s+was completed', caseSensitive: false),
+      regex: RegExp(r"A transaction of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*by\s+(.+?)\s+(?:was completed|at)", caseSensitive: false),
     ),
     _Pattern(
       type: TxType.income,
-      category: 'Other',
-      regex: RegExp(r"received\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from\s+([A-Za-z .'-]+?)(?:\s*\(|\s+on|\s+at)", caseSensitive: false),
+      regex: RegExp(r"received\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from\s+([A-Za-z0-9 .'\'-]+?)(?:\s*\(|\s+on|\s+at|\.|,|$)", caseSensitive: false),
     ),
     _Pattern(
       type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r"payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .'-]+?)\s+has been", caseSensitive: false),
+      regex: RegExp(r"payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .'\'-]+?)(?:\s+with token|\s+has been|\s+was completed|\s+at|\.|,|$)", caseSensitive: false),
     ),
     _Pattern(
       type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r"payment of\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+(.+?)(?:\s+with token|\s+SUCCESSFUL|\s+was completed|\s+at)", caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r"transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z .'-]+?)(?:\s*\([^)]*\))?\s+at", caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r"([\d,]+(?:\.\d+)?)\s*RWF\s*transferred\s*to\s+([A-Za-z .'-]+?)(?:\s*\([^)]*\))?\s+at", caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r'withdrawn\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from', caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Airtime/Data',
-      regex: RegExp(r'bought airtime for\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Airtime/Data',
-      regex: RegExp(r'purchased bundles? for\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
-    ),
-    _Pattern(
-      type: TxType.expense,
-      category: 'Other',
-      regex: RegExp(r'debited (?:with)?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
+      regex: RegExp(r"m-money\s*:\s*.*?transferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .'\'-]+?)(?=\s*(?:\.|,|reference|balance|$))", caseSensitive: false),
     ),
     _Pattern(
       type: TxType.income,
-      category: 'Other',
-      regex: RegExp(r'credited (?:with)?\s*([\d,]+(?:\.\d+)?)\s*RWF', caseSensitive: false),
+      regex: RegExp(r"m-money\s*:\s*.*?received\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from\s+([A-Za-z0-9 .'\'-]+?)(?=\s*(?:\.|,|reference|balance|$))", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      regex: RegExp(r"([\d,]+(?:\.\d+)?)\s*RWF\s*transferred\s*to\s+([A-Za-z0-9 .'\'-]+?)(?:\s*\([^)]*\))?(?:\s+at|\.|,|$)", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      regex: RegExp(r"\btransferred\s*([\d,]+(?:\.\d+)?)\s*RWF\s*to\s+([A-Za-z0-9 .'\'-]+?)(?:\s*\([^)]*\))?(?:\s+at|\.|,|$)", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      regex: RegExp(r"withdrawn\s*([\d,]+(?:\.\d+)?)\s*RWF\s*from", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      regex: RegExp(r"bought airtime for\s*([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.expense,
+      regex: RegExp(r"(?:you have\s+)?(?:payment of|debit|debited)\s*([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false),
+    ),
+    _Pattern(
+      type: TxType.income,
+      regex: RegExp(r"credited\s*(?:with\s*)?([\d,]+(?:\.\d+)?)\s*RWF", caseSensitive: false),
     ),
   ];
 
@@ -103,11 +91,13 @@ class MomoSmsParser {
     String? party;
 
     for (final p in _patterns) {
-      final m = p.regex.firstMatch(text);
-      if (m != null) {
+      final match = p.regex.firstMatch(text);
+      if (match != null) {
         type = p.type;
-        amount = _num(m.group(1));
-        if (m.groupCount >= 2) party = m.group(2)?.trim();
+        amount = _num(match.group(1));
+        if (match.groupCount >= 2) {
+          party = match.group(2)?.trim();
+        }
         break;
       }
     }
@@ -120,23 +110,30 @@ class MomoSmsParser {
       date = DateTime.tryParse(dtMatch.group(1)!.replaceFirst(' ', 'T'));
     }
 
+    final refId = _txId.firstMatch(text)?.group(1) ?? _extractReferenceIdFromText(text);
+
     return ParsedMomoMessage(
       type: type,
       amount: amount,
       counterparty: party,
       balance: _num(_balance.firstMatch(text)?.group(1)),
       fee: _num(_fee.firstMatch(text)?.group(1)),
-      momoTxId: _txId.firstMatch(text)?.group(1),
+      momoTxId: refId,
       date: date,
       rawText: text,
     );
+  }
+
+  static String? _extractReferenceIdFromText(String text) {
+    final match = RegExp(r"(?:reference|ref)\s*[:=]?\s*([A-Za-z0-9]+)", caseSensitive: false).firstMatch(text);
+    return match?.group(1);
   }
 
   static String guessCategory(ParsedMomoMessage parsed) {
     final t = parsed.rawText.toLowerCase();
     final party = (parsed.counterparty ?? '').toLowerCase();
     if (t.contains('airtime') || t.contains('bundle')) return 'Airtime/Data';
-    if (party.contains('electro') || t.contains('electricity') || t.contains('rec ')) return 'Utilities';
+    if (party.contains('electro') || t.contains('electricity') || t.contains('rec')) return 'Utilities';
     if (party.contains('restaurant') || party.contains('cafe') || party.contains('coffee') || party.contains('supermarket')) return 'Food';
     if (party.contains('moto') || party.contains('taxi') || t.contains('transport')) return 'Transport';
     if (parsed.type == TxType.income) return 'Other';
@@ -146,7 +143,7 @@ class MomoSmsParser {
 
 class _Pattern {
   final TxType type;
-  final String category;
   final RegExp regex;
-  _Pattern({required this.type, required this.category, required this.regex});
+
+  _Pattern({required this.type, required this.regex});
 }
