@@ -217,7 +217,7 @@ class LocalStore {
   }
 
   static Future<void> rememberMomoTxId(String momoTxId) async {
-    final ref = (momoTxId ?? '').trim();
+    final ref = momoTxId.trim();
     if (ref.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
@@ -231,7 +231,7 @@ class LocalStore {
   /// Have we already logged this MoMo transaction id? Prevents duplicate
   /// entries if the SMS listener fires twice for the same message.
   static Future<bool> hasMomoTxId(String momoTxId) async {
-    final ref = (momoTxId ?? '').trim();
+    final ref = momoTxId.trim();
     if (ref.isEmpty) return false;
 
     final seen = await getSeenMomoTxIds();
