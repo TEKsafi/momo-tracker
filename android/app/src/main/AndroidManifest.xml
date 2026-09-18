@@ -57,6 +57,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"/>
 
+        <service
+            android:name=".ReminderForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
+
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />

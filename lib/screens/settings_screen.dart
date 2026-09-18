@@ -485,8 +485,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Divider(height: 1, color: AppColors.border),
                     ListTile(
                       title: const Text('Reminder interval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: const Text('Background delivery may be delayed by the phone', style: TextStyle(fontSize: 11, color: AppColors.muted)),
-                      trailing: DropdownButton<int>(value: (_settings['cashReminderIntervalMinutes'] ?? 60) <= 1 ? 1 : 60, items: const [DropdownMenuItem(value: 1, child: Text('1 min')), DropdownMenuItem(value: 60, child: Text('1 hour'))], onChanged: (value) { if (value != null) _setCashReminderInterval(value); }),
+                      subtitle: const Text('Short reminders use a foreground Android loop so they can fire on time', style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                      trailing: DropdownButton<int>(
+                        value: [1, 5, 10, 30, 60].contains(_settings['cashReminderIntervalMinutes'])
+                            ? _settings['cashReminderIntervalMinutes']
+                            : 30,
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('1 min')),
+                          DropdownMenuItem(value: 5, child: Text('5 min')),
+                          DropdownMenuItem(value: 10, child: Text('10 min')),
+                          DropdownMenuItem(value: 30, child: Text('30 min')),
+                          DropdownMenuItem(value: 60, child: Text('1 hour')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) _setCashReminderInterval(value);
+                        },
+                      ),
                     ),
                   ],
               ],

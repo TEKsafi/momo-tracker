@@ -14,9 +14,11 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val methodChannelName = "com.safari.budgeta/momo_sms"
     private val eventChannelName = "com.safari.budgeta/momo_sms_events"
+    private val reminderChannelName = "com.safari.budgeta/reminders"
 
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
+    private lateinit var reminderMethodChannel: MethodChannel
     private var eventSink: EventChannel.EventSink? = null
 
     private val smsReceiver = object : BroadcastReceiver() {
@@ -62,6 +64,22 @@ class MainActivity : FlutterActivity() {
                 eventSink = null
             }
         })
+
+        reminderMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, reminderChannelName)
+        reminderMethodChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startReminder" -> {
+                    val minutes = call.argument<Int>("intervalMinutes") ?: 30
+                    startReminderService(minutes)
+                    result.success(true)
+                }
+                "stopReminder" -> {
+                    stopReminderService()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,6 +109,29 @@ class MainActivity : FlutterActivity() {
     private fun stopForegroundListener() {
         val serviceIntent = Intent(this, MomoSmsForegroundService::class.java).apply {
             action = MomoSmsForegroundService.ACTION_STOP
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+    }
+
+    private fun startReminderService(minutes: Int) {
+        val serviceIntent = Intent(this, ReminderForegroundService::class.java).apply {
+            action = ReminderForegroundService.ACTION_START
+            putExtra("intervalMinutes", minutes)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+    }
+
+    private fun stopReminderService() {
+        val serviceIntent = Intent(this, ReminderForegroundService::class.java).apply {
+            action = ReminderForegroundService.ACTION_STOP
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)

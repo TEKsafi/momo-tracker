@@ -1,13 +1,17 @@
 import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import '../models/transaction.dart';
+import 'local_store.dart';
 import 'momo_sms_parser.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static const MethodChannel _reminderChannel = MethodChannel('com.safari.budgeta/reminders');
   static bool _initialized = false;
 
   static const _transactionChannel = AndroidNotificationDetails(
@@ -155,9 +159,20 @@ class NotificationService {
 
   static Future<void> scheduleCashReminder({required int intervalMinutes}) async {
     await _plugin.cancel(_cashReminderId);
-    final repeat = intervalMinutes <= 1
+
+    final normalized = _normalizeReminderMinutes(intervalMinutes);
+    if (Platform.isAndroid) {
+      try {
+        await _reminderChannel.invokeMethod('startReminder', {'intervalMinutes': normalized});
+        return;
+      } on PlatformException {
+        // Fall back to the plugin scheduler for non-Android or older devices.
+      }
+    }
+
+    final repeat = normalized <= 1
         ? RepeatInterval.everyMinute
-        : intervalMinutes <= 60
+        : normalized <= 60
             ? RepeatInterval.hourly
             : RepeatInterval.daily;
     await _plugin.periodicallyShow(
@@ -171,7 +186,32 @@ class NotificationService {
     );
   }
 
-  static Future<void> cancelCashReminder() async => _plugin.cancel(_cashReminderId);
+  static Future<void> cancelCashReminder() async {
+    await _plugin.cancel(_cashReminderId);
+    if (Platform.isAndroid) {
+      try {
+        await _reminderChannel.invokeMethod('stopReminder');
+      } on PlatformException {}
+    }
+  }
+
+  static Future<void> notifyCashReminder() async {
+    await _plugin.show(
+      _cashReminderId,
+      'Record cash on hand',
+      'Did you spend or receive cash? Add it before you forget.',
+      const NotificationDetails(android: _cashReminderChannel, iOS: _scheduledDarwinDetails, macOS: _scheduledDarwinDetails),
+      payload: 'daily_checkin',
+    );
+  }
+
+  static int _normalizeReminderMinutes(int minutes) {
+    if (minutes <= 1) return 1;
+    if (minutes <= 5) return 5;
+    if (minutes <= 10) return 10;
+    if (minutes <= 30) return 30;
+    return 60;
+  }
 
   static const _dailyCheckinId = 9001;
 }

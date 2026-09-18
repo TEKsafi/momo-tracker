@@ -180,6 +180,20 @@ class LocalStore {
     return (jsonDecode(raw) as List).map((e) => MessageSource.fromJson(e)).toList();
   }
 
+  static Future<bool> senderMatchesEnabledSource(String? sender) async {
+    if (sender == null || sender.trim().isEmpty) return false;
+    final sources = await getMessageSources();
+    final senderLower = sender.toLowerCase();
+    for (final source in sources) {
+      if (!source.enabled) continue;
+      for (final keyword in source.senderKeywords) {
+        if (keyword.trim().isEmpty) continue;
+        if (senderLower.contains(keyword.toLowerCase())) return true;
+      }
+    }
+    return false;
+  }
+
   static Future<void> saveMessageSources(List<MessageSource> sources) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kMessageSources, jsonEncode(sources.map((s) => s.toJson()).toList()));

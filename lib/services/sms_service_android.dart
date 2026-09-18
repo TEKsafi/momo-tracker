@@ -29,18 +29,7 @@ class SmsService {
     return granted ?? false;
   }
 
-  static Future<bool> _matchesEnabledSource(String? address) async {
-    if (address == null) return false;
-    final sources = await LocalStore.getMessageSources();
-    final addressLower = address.toLowerCase();
-    for (final source in sources) {
-      if (!source.enabled) continue;
-      for (final keyword in source.senderKeywords) {
-        if (addressLower.contains(keyword.toLowerCase())) return true;
-      }
-    }
-    return false;
-  }
+  static Future<bool> _matchesEnabledSource(String? address) async => LocalStore.senderMatchesEnabledSource(address);
 
   /// Call once at app startup (Android only) to start listening for new
   /// incoming SMS from any enabled source while the app is running.
