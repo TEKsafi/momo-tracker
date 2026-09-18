@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import '../models/transaction.dart';
-import 'local_store.dart';
 import 'momo_sms_parser.dart';
 
 class NotificationService {
