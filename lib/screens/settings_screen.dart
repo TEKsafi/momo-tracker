@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../models/transaction.dart';
 import '../services/backup_service.dart';
@@ -159,17 +158,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportBackup() async {
     try {
-      final json = await BackupService.exportJson();
-      await Clipboard.setData(ClipboardData(text: json));
-      await SharePlus.instance.share(
-        ShareParams(
-          text: json,
-          subject: 'Budgeta backup',
-        ),
+      final jsonText = await BackupService.exportJson();
+      final bytes = Uint8List.fromList(utf8.encode(jsonText));
+      final savePath = await FilePicker.platform.saveFile(
+        fileName: 'budgeta_backup.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: bytes,
       );
+
+      if (savePath == null) {
+        return;
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup exported and ready to share. Keep it before reinstalling.')),
+          const SnackBar(content: Text('Backup saved as budgeta_backup.json in your chosen folder.')),
         );
       }
     } catch (_) {
@@ -186,18 +190,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
+        dialogTitle: 'Open Budgeta backup',
         withData: true,
+        lockParentWindow: false,
       );
 
-      if (result == null || result.files.isEmpty || result.files.single.path == null) {
+      if (result == null || result.files.isEmpty) {
         return;
       }
 
-      final file = File(result.files.single.path!);
-      final jsonText = await file.readAsString();
-      final decoded = jsonDecode(jsonText);
+      final file = result.files.single;
+      final rawText = file.bytes != null ? utf8.decode(file.bytes!) : await File(file.path!).readAsString();
+      final decoded = jsonDecode(rawText);
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid backup format');
+      }
+
+      if (!BackupService.isValidPayload(decoded)) {
+        throw const FormatException('Invalid Budgeta backup schema');
       }
 
       await BackupService.importAll(decoded);

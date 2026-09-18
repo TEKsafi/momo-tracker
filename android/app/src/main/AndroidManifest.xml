@@ -64,6 +64,15 @@
             android:foregroundServiceType="dataSync"/>
 
         <receiver
+            android:exported="true"
+            android:name=".ReminderReceiver">
+            <intent-filter>
+                <action android:name="com.safari.budgeta.DAILY_CHECKIN" />
+                <action android:name="com.safari.budgeta.INTERVAL_REMINDER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
         <receiver

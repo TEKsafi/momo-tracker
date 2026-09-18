@@ -70,11 +70,11 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "startReminder" -> {
                     val minutes = call.argument<Int>("intervalMinutes") ?: 30
-                    startReminderService(minutes)
+                    ReminderScheduler.scheduleIntervalAlarm(this, minutes)
                     result.success(true)
                 }
                 "stopReminder" -> {
-                    stopReminderService()
+                    ReminderScheduler.cancelIntervalAlarm(this)
                     result.success(true)
                 }
                 else -> result.notImplemented()

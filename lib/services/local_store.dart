@@ -182,16 +182,36 @@ class LocalStore {
 
   static Future<bool> senderMatchesEnabledSource(String? sender) async {
     if (sender == null || sender.trim().isEmpty) return false;
-    final sources = await getMessageSources();
-    final senderLower = sender.toLowerCase();
-    for (final source in sources) {
-      if (!source.enabled) continue;
-      for (final keyword in source.senderKeywords) {
-        if (keyword.trim().isEmpty) continue;
-        if (senderLower.contains(keyword.toLowerCase())) return true;
+
+    final senderLower = sender.trim().toLowerCase();
+    final fallbackKeywords = <String>['m-money', 'mtnmomo', 'mtn', 'momo'];
+
+    try {
+      final sources = await getMessageSources();
+      final enabledKeywords = <String>[];
+
+      for (final source in sources) {
+        if (!source.enabled) continue;
+        for (final keyword in source.senderKeywords) {
+          final value = keyword.trim();
+          if (value.isNotEmpty) {
+            enabledKeywords.add(value.trim().toLowerCase());
+          }
+        }
       }
+
+      if (enabledKeywords.isEmpty) {
+        return fallbackKeywords.any((keyword) => senderLower.contains(keyword));
+      }
+
+      final combined = <String>{...enabledKeywords, ...fallbackKeywords};
+      for (final keyword in combined) {
+        if (senderLower.contains(keyword)) return true;
+      }
+      return false;
+    } catch (_) {
+      return fallbackKeywords.any((keyword) => senderLower.contains(keyword));
     }
-    return false;
   }
 
   static Future<void> saveMessageSources(List<MessageSource> sources) async {

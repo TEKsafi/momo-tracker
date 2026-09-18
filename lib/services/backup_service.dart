@@ -7,6 +7,15 @@ import 'local_store.dart';
 class BackupService {
   static const _version = 1;
 
+  static bool isValidPayload(Map<String, dynamic> payload) {
+    if (payload['version'] is! int && payload['version'] is! String) return false;
+    final requiredKeys = ['activeBudgetId', 'budgets', 'transactions', 'allocations', 'goals', 'accounts', 'sources', 'settings'];
+    for (final key in requiredKeys) {
+      if (!payload.containsKey(key)) return false;
+    }
+    return true;
+  }
+
   static Future<Map<String, dynamic>> exportAll() async {
     final budgets = await LocalStore.getBudgets();
     final transactions = await LocalStore.getTransactions();
@@ -37,6 +46,10 @@ class BackupService {
   }
 
   static Future<void> importAll(Map<String, dynamic> payload) async {
+    if (!isValidPayload(payload)) {
+      throw const FormatException('Invalid Budgeta backup schema. Expected version, activeBudgetId, budgets, transactions, allocations, goals, accounts, sources, and settings.');
+    }
+
     final budgets = (payload['budgets'] as List? ?? [])
         .map((e) => Budget.fromJson(e as Map<String, dynamic>))
         .toList();
