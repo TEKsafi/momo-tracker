@@ -59,6 +59,7 @@ class LocalStore {
 
   static Future<List<Budget>> getBudgets() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final raw = prefs.getString(_kBudgets) ?? '[]';
     return (jsonDecode(raw) as List).map((e) => Budget.fromJson(e)).toList();
   }
@@ -118,6 +119,7 @@ class LocalStore {
 
   static Future<Map<String, dynamic>> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final raw = prefs.getString(_kSettings) ?? '{}';
     final settings = jsonDecode(raw) as Map<String, dynamic>;
     var changed = false;
@@ -171,6 +173,7 @@ class LocalStore {
 
   static Future<List<MessageSource>> getMessageSources() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     final raw = prefs.getString(_kMessageSources);
     if (raw == null) {
       final defaults = MessageSource.defaults();
@@ -180,38 +183,38 @@ class LocalStore {
     return (jsonDecode(raw) as List).map((e) => MessageSource.fromJson(e)).toList();
   }
 
+  static Set<String> getNormalizedEnabledSenderKeywords() {
+    const fallbackKeywords = <String>['m-money', 'mtnmomo', 'mtn', 'momo'];
+    return fallbackKeywords.toSet();
+  }
+
+  static Future<Set<String>> getActiveSenderKeywordSet() async {
+    final fallbackKeywords = getNormalizedEnabledSenderKeywords();
+    try {
+      final sources = await getMessageSources();
+      final result = <String>{...fallbackKeywords};
+      for (final source in sources) {
+        if (!source.enabled) continue;
+        for (final keyword in source.senderKeywords) {
+          final cleaned = keyword.trim().toLowerCase();
+          if (cleaned.isNotEmpty) result.add(cleaned);
+        }
+      }
+      return result;
+    } catch (_) {
+      return fallbackKeywords;
+    }
+  }
+
   static Future<bool> senderMatchesEnabledSource(String? sender) async {
     if (sender == null || sender.trim().isEmpty) return false;
 
     final senderLower = sender.trim().toLowerCase();
-    final fallbackKeywords = <String>['m-money', 'mtnmomo', 'mtn', 'momo'];
-
-    try {
-      final sources = await getMessageSources();
-      final enabledKeywords = <String>[];
-
-      for (final source in sources) {
-        if (!source.enabled) continue;
-        for (final keyword in source.senderKeywords) {
-          final value = keyword.trim();
-          if (value.isNotEmpty) {
-            enabledKeywords.add(value.trim().toLowerCase());
-          }
-        }
-      }
-
-      if (enabledKeywords.isEmpty) {
-        return fallbackKeywords.any((keyword) => senderLower.contains(keyword));
-      }
-
-      final combined = <String>{...enabledKeywords, ...fallbackKeywords};
-      for (final keyword in combined) {
-        if (senderLower.contains(keyword)) return true;
-      }
-      return false;
-    } catch (_) {
-      return fallbackKeywords.any((keyword) => senderLower.contains(keyword));
+    final keywords = await getActiveSenderKeywordSet();
+    for (final keyword in keywords) {
+      if (senderLower.contains(keyword)) return true;
     }
+    return false;
   }
 
   static Future<void> saveMessageSources(List<MessageSource> sources) async {
